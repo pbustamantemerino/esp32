@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Control LEDs ESP32</title>
+  <style>
+    body {
+      font-family: -apple-system, sans-serif;
+      background-color: #121212;
+      color: white;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      gap: 25px;
+    }
+    button {
+      padding: 15px 30px;
+      font-size: 18px;
+      border: none;
+      border-radius: 12px;
+      background-color: #007AFF;
+      color: white;
+      font-weight: bold;
+    }
+    input[type="color"] {
+      width: 150px;
+      height: 150px;
+      border: none;
+      background: none;
+    }
+    input[type="range"] {
+      width: 80%;
+      max-width: 300px;
+    }
+  </style>
+</head>
+<body>
+
+  <button id="connectBtn">Conectar al ESP32</button>
+  
+  <label>Color:</label>
+  <input type="color" id="colorPicker" value="#ff0000" disabled>
+  
+  <label>Brillo:</label>
+  <input type="range" id="brightnessSlider" min="0" max="255" value="128" disabled>
+
+  <button id="offBtn" style="background-color: #FF3B30;" disabled>Apagar</button>
+
+  <script>
+    const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
+    const CHARACTERISTIC_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+    let ledCharacteristic = null;
+
+    const connectBtn = document.getElementById('connectBtn');
+    const colorPicker = document.getElementById('colorPicker');
+    const brightnessSlider = document.getElementById('brightnessSlider');
+    const offBtn = document.getElementById('offBtn');
+
+    // Conectar por BLE
+    connectBtn.addEventListener('click', async () => {
+      try {
+        const device = await navigator.bluetooth.requestDevice({
+          filters: [{ name: 'ESP32-LEDs' }],
+          optionalServices: [SERVICE_UUID]
+        });
+        const server = await device.gatt.connect();
+        const service = await server.getPrimaryService(SERVICE_UUID);
+        ledCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
+
+        connectBtn.textContent = "Conectado ✅";
+        connectBtn.style.backgroundColor = "#34C759";
+        colorPicker.disabled = false;
+        brightnessSlider.disabled = false;
+        offBtn.disabled = false;
+      } catch (error) {
+        alert("Error al conectar: " + error);
+      }
+    });
+
+    // Enviar color y brillo al ESP32
+    async function sendColor() {
+      if (!ledCharacteristic) return;
+      
+      const hex = colorPicker.value;
+      const r = parseInt(hex.substr(1, 2), 16);
+      const g = parseInt(hex.substr(3, 2), 16);
+      const b = parseInt(hex.substr(5, 2), 16);
+      const brightness = parseInt(brightnessSlider.value);
+
+      const data = new Uint8Array([r, g, b, brightness]);
+      await ledCharacteristic.writeValueWithoutResponse(data);
+    }
+
+    colorPicker.addEventListener('input', sendColor);
+    brightnessSlider.addEventListener('input', sendColor);
+    
+    offBtn.addEventListener('click', async () => {
+      if (!ledCharacteristic) return;
+      const data = new Uint8Array([0, 0, 0, 0]);
+      await ledCharacteristic.writeValueWithoutResponse(data);
+    });
+  </script>
+</body>
+</html>
